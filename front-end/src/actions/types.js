@@ -1,0 +1,9 @@
+export const FETCH_USERS_COUNT = 'FETCH_USERS_COUNT';
+export const FETCH_USERS = 'FETCH_USERS';
+export const ADD_USER = 'ADD_USER';
+export const DELETE_USER = 'DELETE_USER';
+export const UPDATE_USER = 'UPDATE_USER';
+export const FORGOT_PASSWORD = 'FORGOT_PASSWORD';
+export const RESET_PASSWORD = 'RESET_PASSWORD';
+export const LOGIN = 'LOGIN';
+export const FETCH_SINGLE_USER_DATA = 'FETCH_SINGLE_USER_DATA';

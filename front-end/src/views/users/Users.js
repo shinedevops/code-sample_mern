@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import moment from 'moment'
-import { useHistory, useLocation } from 'react-router-dom'
-import SimpleReactValidator from 'simple-react-validator'
+import { connect } from 'react-redux';
+import moment from 'moment';
+import { useHistory } from 'react-router-dom';
 import {
-  // CBadge,
   CCard,
   CCardBody,
   CCardHeader,
@@ -12,36 +11,75 @@ import {
   CRow,
   CPagination,
   CButton,
-  CModal,
-  CModalBody,
-  CModalFooter,
-  CModalHeader,
-  CForm,
-  CFormGroup,
-  CLabel,
-  CInput,
-} from '@coreui/react'
-import axios from 'axios'
-import CIcon from '@coreui/icons-react'
+} from '@coreui/react';
+import CIcon from '@coreui/icons-react';
+import UserForm from './UserForm';
+import {
+  addUser,
+  updateUser,
+  deleteUser,
+  fetchUsers,
+  fetchSingleUserData
+} from '../../actions/userActions';
+import { Global } from '../../utils/Env';
 
-const validator = new SimpleReactValidator({
-  element: (message, className) => <div className={"text-danger"}>{message}</div>
-});
+const Users = props => {
 
-const Users = () => {
+
+  Global.callback.addUser_onComplete = () => {
+    props.fetchUsers();
+    toggle();
+    modalTypeChangeToAdd();
+  }
+
+  Global.callback.updateUser_onComplete = () => {
+    props.fetchUsers();
+    toggle();
+    modalTypeChangeToAdd();
+  }
+
+  Global.callback.deleteUser_onComplete = () => {
+    props.fetchUsers();
+  }
+
+  Global.callback.fetchSingleUserData_onComplete = res => {
+    if(res.user){
+      const { name, email, phone, id } = res.user;
+      setFetchedUserData({name, email, phone, id});
+      setAddUserModalType(false);
+      setErrors({});
+      toggle();
+    }
+  }
+
+
   const limit = 5;
   const history = useHistory()
-  const queryPage = useLocation().search.match(/page=([0-9]+)/, '')
-  const currentPage = Number(queryPage && queryPage[1] ? queryPage[1] : 1)
+  const currentPage = props.match.params.pg ? Number(props.match.params.pg) : 1;
   const [page, setPage] = useState(currentPage)
-  const [ users, setUsers ] = useState([])
   const [ addUsersModal, setAddUsersModal ] = useState(false);
-  const [ userData, setUserData ] = useState({ name: '', email: "", password: "", cpassword: "", phone: "" });
-  const [, forceUpdate] = useState(0);
-
+  const [ fetchedUserData, setFetchedUserData ] = useState({
+    name: '' , 
+    email: '', 
+    phone: '',
+    id:'',
+  });
+  const [ addUserModalType, setAddUserModalType ] = useState(true);
+  const [ errors, setErrors ] = useState({});
 
   const pageChange = newPage => {
-    currentPage !== newPage && history.push(`/users?page=${newPage}`)
+    currentPage !== newPage && history.push(`/users/page/${newPage}`)
+  }
+
+  const modalTypeChangeToAdd = () => {
+    setAddUserModalType(true);
+    setFetchedUserData({
+      name: '' , 
+      email: '', 
+      phone: '',
+      id:'',
+    });
+    setErrors({});
   }
 
   useEffect(() => {
@@ -49,65 +87,29 @@ const Users = () => {
   }, [currentPage, page])
 
   useEffect(() => {
-    getAllUsers();
+    props.fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   const toggle = () => {
     setAddUsersModal(!addUsersModal);
   }
 
-  const userDataChangeHandler = (e) => {
-    setUserData({...userData, [e.target.name]: e.target.value});
+  const saveUserData = userData => {
+    const { name, email, phone, password, cpassword, id } = userData;
+    if(!id){
+      props.addUser({ name, email, phone, password, password2: cpassword });
+    }else{
+      props.updateUser({ name, email, phone, password, password2: cpassword, id: id });
+    }
   }
 
-  const getAllUsers = () => {
-    axios.get('http://localhost:4000/users/get-users', {
-      headers : {
-        Authorization: localStorage.getItem('token')
-      }
-    }).then(res => {
-      setUsers(res.data.users);
-    }).catch(err=>console.log(err));
+  const getUserData = (id) => {
+    props.fetchSingleUserData(id);
   }
 
   const deleteUser = (_id) => {
-    axios.delete(`http://localhost:4000/users/delete-user/${_id}`, {
-      headers : {
-        Authorization: localStorage.getItem('token')
-      }
-    }).then(res => {
-      console.log(res.data.message);
-      getAllUsers();
-    }).catch(err => {
-      console.log(err.response);
-    })
-  }
-
-  const saveUserHandler = (e) => {
-    e.preventDefault();
-    if (validator.allValid()) {
-      const { name, email, phone, password, cpassword } = userData;
-      axios.post('http://localhost:4000/users/new-user', {
-        name,
-        email,
-        phone,
-        password,
-        password2: cpassword
-      }, {
-        headers : {
-          Authorization: localStorage.getItem('token')
-        }
-      }).then(res => {
-        setUserData({ name: '', email: "", password: "", cpassword: "", phone: "" });
-        getAllUsers();
-        setAddUsersModal(!addUsersModal);
-      }).catch(err => {
-        console.log(err.response.data);
-      });
-    } else {
-      validator.showMessages();
-      forceUpdate(1);
-    }
+    props.deleteUser(_id);
   }
 
   return (
@@ -117,19 +119,18 @@ const Users = () => {
           <CCardHeader>
             Users
             <CButton
-              onClick={toggle}
+              onClick={()=>{modalTypeChangeToAdd();toggle();}}
               className="mr-1 float-right"
               color="primary"
             >Add New User +</CButton>
           </CCardHeader>
           <CCardBody>
           <CDataTable
-            items={users}
+            items={props.users.users ? props.users.users : []}
             fields={[
               { key: 'name', _classes: 'font-weight-bold' },
               'email', 'date', 'phone',
-              { key: 'delete', label: '' },
-              { key: 'edit', label: '' }
+              { key: 'actions', label: 'Actions' }
             ]}
             hover
             striped
@@ -146,113 +147,43 @@ const Users = () => {
                     </p>
                   </td>
                 ),
-              'delete': 
+              'actions': 
                 (item)=>(
                   <td>
+                    <CButton onClick={()=>getUserData(item._id)}><CIcon name="cil-pencil" /></CButton>
                     <CButton onClick={()=>deleteUser(item._id)}><CIcon name="cil-trash" /></CButton>
-                  </td>
-                ),
-              'edit':
-                (item) => (
-                  <td>
-                    <CButton><CIcon name="cil-pencil" /></CButton>
                   </td>
                 )
             }}
           />
           <CPagination
             activePage={page}
-            onActivePageChange={pageChange}
-            pages={Math.ceil(users.length/limit)}
+            onActivePageChange={(newpage)=>pageChange(newpage)}
+            pages={Math.ceil((props.users.users ? props.users.users.length : 0)/limit) || 1}
             doubleArrows={false} 
             align="center"
           />
           </CCardBody>
         </CCard>
       </CCol>
-      <CModal
-        show={addUsersModal}
-        onClose={toggle}
-      >
-        <CModalHeader closeButton>Add New User</CModalHeader>
-        <CForm action="" method="post" onSubmit={saveUserHandler}>
-          <CModalBody>
-            <CRow>
-              <CCol sm="12">
-                  <CFormGroup>
-                    <CLabel htmlFor="name">Name</CLabel>
-                    <CInput
-                      type="text"
-                      id="name"
-                      name="name"
-                      placeholder="Enter Name"
-                      value={userData.name}
-                      onChange={userDataChangeHandler}
-                    />
-                    {validator.message('name', userData.name, 'required|min:2')}
-                  </CFormGroup>
-                  <CFormGroup>
-                    <CLabel htmlFor="email">Email</CLabel>
-                    <CInput
-                      type="email"
-                      id="email"
-                      name="email"
-                      placeholder="Enter Email"
-                      value={userData.email}
-                      onChange={userDataChangeHandler}
-                    />
-                    {validator.message('email', userData.email, 'required|email')}
-                  </CFormGroup>
-                  <CFormGroup>
-                    <CLabel htmlFor="phone">Phone</CLabel>
-                    <CInput
-                      type="text"
-                      id="phone"
-                      name="phone"
-                      placeholder="Enter Phone"
-                      value={userData.phone}
-                      onChange={userDataChangeHandler}
-                    />
-                    {validator.message('phone', userData.phone, 'required|phone')}
-                  </CFormGroup>
-                  <CFormGroup>
-                    <CLabel htmlFor="password">Password</CLabel>
-                    <CInput
-                      type="password"
-                      id="password"
-                      name="password"
-                      placeholder="Enter Password"
-                      value={userData.password}
-                      onChange={userDataChangeHandler}
-                    />
-                    {validator.message('password', userData.password, 'required|min:6|max:30')}
-                  </CFormGroup>
-                  <CFormGroup>
-                    <CLabel htmlFor="cpassword">Confirm Password</CLabel>
-                    <CInput
-                      type="password"
-                      id="cpassword"
-                      name="cpassword"
-                      placeholder="Confirm Password"
-                      value={userData.cpassword}
-                      onChange={userDataChangeHandler}
-                    />
-                    {validator.message('confirm password', userData.cpassword, `required|in${userData.password}`)}
-                  </CFormGroup>
-              </CCol>
-            </CRow>
-          </CModalBody>
-        <CModalFooter>
-          <CButton type="submit" color="primary">Add User</CButton>{' '}
-          <CButton
-            color="secondary"
-            onClick={toggle}
-          >Cancel</CButton>
-        </CModalFooter>
-        </CForm>
-      </CModal>
+      {addUsersModal ? 
+        <UserForm 
+          addUsersModal={addUsersModal} 
+          toggle={toggle} 
+          title={addUserModalType ? "Add New User" : "Update User Data"}   
+          saveButtonTitle={addUserModalType ? "Add" : "Update"}
+          userData={fetchedUserData}
+          saveUserData={saveUserData}
+          errors={errors}
+        />
+      : null}
     </CRow>
   )
 }
 
-export default Users
+const mapStateToProps = state => ({
+  users: state.user.users,
+  singleUserData: state.user.singleUserData
+})
+
+export default connect(mapStateToProps, { addUser, updateUser, deleteUser, fetchSingleUserData, fetchUsers })(Users);

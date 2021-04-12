@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
-// import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react';
+import { connect } from 'react-redux';
 import {
   CButton,
   CAlert,
@@ -15,10 +14,16 @@ import {
   CInputGroupPrepend,
   CInputGroupText,
   CRow
-} from '@coreui/react'
-import CIcon from '@coreui/icons-react'
+} from '@coreui/react';
+import CIcon from '@coreui/icons-react';
+import { login } from '../../../actions/authActions';
+import { Global } from '../../../utils/Env';
 
 const Login = props => {
+  Global.callback.login_onComplete = res => {
+    localStorage.setItem('token', res.token);
+    props.history.push('/dashboard');
+  }
 
   useEffect(()=>{
     if(localStorage.getItem('token')){
@@ -28,22 +33,11 @@ const Login = props => {
 
   const [ email, setEmail ] = useState("");
   const [ password, setPassword ] = useState("");
-  const [ errors, setErrors ] = useState({});
+  const [ errors ] = useState({});
 
   const loginHandler = async () => {
-    try{
-      let user = await axios.post('http://localhost:4000/users/login', {
-        email,
-        password
-      });
-      localStorage.setItem('token', user.data.token);
-      props.history.push('/dashboard');
-    }catch(err){
-      setErrors(err.response.data);
-    }
+    props.login({ email, password });
   }
-
-  console.log(errors);
 
   return (
     <div className="c-app c-default-layout flex-row align-items-center">
@@ -82,7 +76,7 @@ const Login = props => {
                         <CButton color="primary" className="px-4" onClick={loginHandler}>Login</CButton>
                       </CCol>
                       <CCol xs="6" className="text-right">
-                        <CButton color="link" className="px-0">Forgot password?</CButton>
+                        <CButton color="link" className="px-0" onClick={()=>props.history.push('/forgot-password')}>Forgot password?</CButton>
                       </CCol>
                     </CRow>
                   </CForm>
@@ -108,4 +102,4 @@ const Login = props => {
   )
 }
 
-export default Login
+export default connect(null, { login })(Login);
